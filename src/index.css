@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Berkeley Mono – self-hosted in public/fonts/ */
+@font-face {
+  font-family: "Berkeley Mono";
+  src: url("/fonts/BerkeleyMono-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Berkeley Mono";
+  src: url("/fonts/BerkeleyMono-Oblique.otf") format("opentype");
+  font-weight: 400;
+  font-style: oblique;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Berkeley Mono";
+  src: url("/fonts/BerkeleyMono-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Berkeley Mono";
+  src: url("/fonts/BerkeleyMono-Bold-Oblique.otf") format("opentype");
+  font-weight: 700;
+  font-style: oblique;
+  font-display: swap;
+}
+
+@import "@fontsource/ibm-plex-mono/latin-300.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-700.css";
+
+@theme {
+  --font-mono: "Berkeley Mono", "IBM Plex Mono", ui-monospace, monospace;
+}
+
+html {
+  color: rgba(10, 10, 10, 1);
+  background-color: rgba(13, 13, 13, 1);
+}
+
+html,
+body {
+  overscroll-behavior: none;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: #0a0a0a;
+  color: rgb(135, 135, 135);
+  line-height: 1.625; /* leading-relaxed */
+}
+
+#root {
+  color: rgba(125, 125, 125, 1);
+  background-color: rgba(13, 13, 13, 1);
+}
