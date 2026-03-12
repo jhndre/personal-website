@@ -30,9 +30,18 @@ function loadEnv() {
 }
 
 const env = loadEnv()
-const CLIENT_ID = env.WHOOP_CLIENT_ID
-const CLIENT_SECRET = env.WHOOP_CLIENT_SECRET
-const REDIRECT_URI = env.WHOOP_REDIRECT_URI || 'http://localhost:3000/callback'
+const CLIENT_ID = (env.WHOOP_CLIENT_ID || '').trim()
+const CLIENT_SECRET = (env.WHOOP_CLIENT_SECRET || '').trim()
+
+if (!CLIENT_ID || !CLIENT_SECRET) {
+  console.error('Missing WHOOP_CLIENT_ID or WHOOP_CLIENT_SECRET in .env')
+  process.exit(1)
+}
+if (CLIENT_ID.includes('\n') || CLIENT_SECRET.includes('\n')) {
+  console.error('WHOOP_CLIENT_ID or WHOOP_CLIENT_SECRET contains a newline. Use a single line in .env.')
+  process.exit(1)
+}
+
 const SCOPES = [
   'read:recovery',
   'read:cycles',
@@ -43,16 +52,28 @@ const SCOPES = [
   'offline',
 ].join(' ')
 
-const AUTH_URL = `https://api.prod.whoop.com/oauth/oauth2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(SCOPES)}&state=whoopauth`
+function buildAuthUrl(redirectUri) {
+  return `https://api.prod.whoop.com/oauth/oauth2/auth?client_id=${encodeURIComponent(CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(SCOPES)}&state=whoopauth`
+    .replace(/[\r\n]+/g, '')
+    .trim()
+}
 
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url ?? '', 'http://localhost:3000')
+function startServer(port) {
+  const redirectUri = `http://localhost:${port}/callback`
+  const authUrl = buildAuthUrl(redirectUri)
+  const baseUrl = `http://localhost:${port}`
 
-  if (url.pathname === '/callback') {
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? '', baseUrl)
+
+    if (url.pathname === '/callback') {
     const code = url.searchParams.get('code')
     if (!code) {
-      res.writeHead(400, { 'Content-Type': 'text/plain' })
-      res.end('Missing code parameter')
+      res.writeHead(200, { 'Content-Type': 'text/html' })
+      res.end(
+        '<h1>Wrong URL</h1><p>Do not open <code>/callback</code> directly.</p>' +
+          `<p><a href="/">Click here</a> to start at <strong>${baseUrl}</strong> — you will be redirected to WHOOP to sign in, then sent back here with a code.</p>`
+      )
       return
     }
 
@@ -64,7 +85,7 @@ const server = createServer(async (req, res) => {
         code,
         client_id: CLIENT_ID,
         client_secret: CLIENT_SECRET,
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: redirectUri,
       }),
     })
 
@@ -72,13 +93,14 @@ const server = createServer(async (req, res) => {
 
     if (tokens.access_token) {
       let envContent = readFileSync(envPath, 'utf-8')
-      if (envContent.includes('WHOOP_ACCESS_TOKEN=')) {
-        envContent = envContent.replace(/WHOOP_ACCESS_TOKEN=.*/, `WHOOP_ACCESS_TOKEN=${tokens.access_token}`)
+      // Match line with or without leading # (so we uncomment when saving)
+      if (/WHOOP_ACCESS_TOKEN=/.test(envContent)) {
+        envContent = envContent.replace(/#?\s*WHOOP_ACCESS_TOKEN=.*/m, `WHOOP_ACCESS_TOKEN=${tokens.access_token}`)
       } else {
         envContent += `\nWHOOP_ACCESS_TOKEN=${tokens.access_token}`
       }
-      if (envContent.includes('WHOOP_REFRESH_TOKEN=')) {
-        envContent = envContent.replace(/WHOOP_REFRESH_TOKEN=.*/, `WHOOP_REFRESH_TOKEN=${tokens.refresh_token}`)
+      if (/WHOOP_REFRESH_TOKEN=/.test(envContent)) {
+        envContent = envContent.replace(/#?\s*WHOOP_REFRESH_TOKEN=.*/m, `WHOOP_REFRESH_TOKEN=${tokens.refresh_token}`)
       } else {
         envContent += `\nWHOOP_REFRESH_TOKEN=${tokens.refresh_token}`
       }
@@ -91,18 +113,52 @@ const server = createServer(async (req, res) => {
 
       res.writeHead(200, { 'Content-Type': 'text/html' })
       res.end('<h1>Done! Tokens saved. You can close this tab.</h1>')
-      setTimeout(() => process.exit(0), 1000)
+      // Exit after a short delay so the response is fully sent
+      setTimeout(() => process.exit(0), 2000)
     } else {
       console.error('Token exchange failed:', tokens)
       res.writeHead(500, { 'Content-Type': 'text/html' })
       res.end(`<pre>Token exchange failed: ${JSON.stringify(tokens, null, 2)}</pre>`)
     }
   } else {
-    res.writeHead(302, { Location: AUTH_URL })
-    res.end()
+    // Redirect to WHOOP OAuth; also send a fallback HTML page in case the redirect is stripped (e.g. 404 on api.prod.whoop.com)
+    res.writeHead(302, {
+      Location: authUrl,
+      'Cache-Control': 'no-store',
+    })
+    res.end(
+      `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${escapeHtml(authUrl)}"></head><body><p>Redirecting to WHOOP…</p><p>If you are not redirected, <a href="${escapeHtml(authUrl)}">click here to authorize</a>.</p><p style="margin-top:1.5em;font-size:0.9em;color:#666">If you see &quot;This page isn't working&quot; at api.prod.whoop.com, add this Redirect URI in the WHOOP Developer Dashboard → your app → Redirect URIs:</p><p style="font-family:monospace;font-size:0.85em">${escapeHtml(redirectUri)}</p></body></html>`
+    )
   }
-})
+  })
 
-server.listen(3000, () => {
-  console.log('\nOpen http://localhost:3000 in your browser to authorize WHOOP\n')
-})
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && port < 3010) {
+      server.close(() => startServer(port + 1))
+    } else {
+      throw err
+    }
+  })
+
+  server.listen(port, () => {
+    const preview = authUrl.replace(/client_id=[^&]+/, 'client_id=...')
+    console.log(`\nOpen http://localhost:${port} in your browser to authorize WHOOP`)
+    console.log('\n  If you see "This page isn\'t working" or api.prod.whoop.com error:')
+    console.log('  → Add this exact Redirect URI in the WHOOP Developer Dashboard (your app → Redirect URIs):')
+    console.log(`\n      ${redirectUri}\n`)
+    if (port !== 3000) {
+      console.log('  (Port 3000 was in use; this run is using port ' + port + '.)')
+    }
+    console.log('  Then open the URL above again.\n')
+  })
+}
+
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+startServer(3000)

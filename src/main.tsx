@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import Essays from './pages/Essays.tsx'
 import Whoop from './pages/Whoop.tsx'
+import NotFound from './pages/NotFound.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -13,6 +14,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<App />} />
         <Route path="/essays" element={<Essays />} />
         <Route path="/whoop" element={<Whoop />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

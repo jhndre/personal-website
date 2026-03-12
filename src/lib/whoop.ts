@@ -89,12 +89,50 @@ export function guessCsvType(headerRow: string): 'cycles' | 'sleeps' | 'unknown'
   return 'unknown'
 }
 
+/**
+ * Fetch WHOOP data: tries /api/whoop (Vercel KV) then /whoop-data.json (static).
+ */
+export async function fetchWhoopData(): Promise<WhoopApiData | null> {
+  try {
+    const r = await fetch('/api/whoop')
+    if (r.ok) return await r.json()
+    const r2 = await fetch('/whoop-data.json')
+    return r2.ok ? await r2.json() : null
+  } catch {
+    return null
+  }
+}
+
 /** Shape of public/whoop-data.json from scripts/whoop-fetch.js */
 export interface WhoopApiData {
   fetchedAt?: string
+  latest?: {
+    recovery?: WhoopApiRecovery
+    sleep?: WhoopApiSleep
+    cycle?: WhoopApiCycle & { score?: { strain?: number } }
+  }
   recoveries?: WhoopApiRecovery[]
   sleeps?: WhoopApiSleep[]
   cycles?: WhoopApiCycle[]
+  workouts?: WhoopApiWorkout[]
+}
+
+export interface WhoopApiWorkout {
+  id?: string
+  start?: string
+  end?: string
+  sport_name?: string
+  score_state?: string
+  score?: {
+    average_heart_rate?: number
+    zone_durations?: {
+      zone_one_milli?: number
+      zone_two_milli?: number
+      zone_three_milli?: number
+      zone_four_milli?: number
+      zone_five_milli?: number
+    }
+  }
 }
 
 interface WhoopApiRecovery {
@@ -114,6 +152,7 @@ interface WhoopApiCycle {
   start?: string
   end?: string
   strain?: number
+  score?: { strain?: number }
   kilojoule?: number
 }
 
@@ -147,7 +186,7 @@ export function apiDataToCycles(data: WhoopApiData): WhoopCycle[] {
       return {
         date,
         recovery: score.recovery_score ?? 0,
-        strain: cycle?.strain ?? 0,
+        strain: cycle?.score?.strain ?? cycle?.strain ?? 0,
         rhr: score.resting_heart_rate ?? 0,
         hrv: score.hrv_rmssd_milli ?? 0,
       }
@@ -170,4 +209,66 @@ export function apiDataToSleeps(data: WhoopApiData): WhoopSleep[] {
       }
     })
     .sort((a, b) => (b.date < a.date ? -1 : 1))
+}
+
+/** Normalized workout for the activities UI */
+export interface WhoopWorkoutRow {
+  start: string
+  dateKey: string // YYYY-MM-DD for grouping
+  sportName: string
+  durationMinutes: number
+  averageHeartRate: number
+  zoneOneThreeMilli: number
+  zoneFourFiveMilli: number
+}
+
+/** Convert API workouts into WhoopWorkoutRow[] (last 7 days by start date) */
+export function apiDataToWorkouts(data: WhoopApiData): WhoopWorkoutRow[] {
+  const workouts = data.workouts ?? []
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 7)
+  return workouts
+    .filter((w) => w.score_state === 'SCORED' && (w.start || w.end))
+    .map((w) => {
+      const start = w.start ?? w.end ?? ''
+      const startDate = new Date(start)
+      const endDate = w.end ? new Date(w.end) : startDate
+      const durationMs = endDate.getTime() - startDate.getTime()
+      const durationMinutes = Math.round(durationMs / (1000 * 60))
+      const zd = w.score?.zone_durations ?? {}
+      const z1 = zd.zone_one_milli ?? 0
+      const z2 = zd.zone_two_milli ?? 0
+      const z3 = zd.zone_three_milli ?? 0
+      const z4 = zd.zone_four_milli ?? 0
+      const z5 = zd.zone_five_milli ?? 0
+      const dateKey = start.slice(0, 10)
+      return {
+        start,
+        dateKey,
+        sportName: w.sport_name ?? 'activity',
+        durationMinutes,
+        averageHeartRate: w.score?.average_heart_rate ?? 0,
+        zoneOneThreeMilli: z1 + z2 + z3,
+        zoneFourFiveMilli: z4 + z5,
+      }
+    })
+    .filter((w) => new Date(w.start).getTime() >= cutoff.getTime())
+    .sort((a, b) => (b.start < a.start ? -1 : 1))
+}
+
+/** Get latest sleep %, recovery %, strain from API data (uses latest or first of arrays) */
+export function getWhoopLatestSummary(data: WhoopApiData | null): {
+  sleepPct: number | null
+  recoveryPct: number | null
+  strain: number | null
+} {
+  if (!data) return { sleepPct: null, recoveryPct: null, strain: null }
+  const sleep = data.latest?.sleep ?? data.sleeps?.[0]
+  const recovery = data.latest?.recovery ?? data.recoveries?.[0]
+  const cycle = data.latest?.cycle ?? data.cycles?.[0]
+  return {
+    sleepPct: sleep?.score?.sleep_performance_percentage ?? null,
+    recoveryPct: recovery?.score?.recovery_score ?? null,
+    strain: cycle?.score?.strain ?? cycle?.strain ?? null,
+  }
 }

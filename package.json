@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "whoop:auth": "node scripts/whoop-auth.js",
-    "whoop:fetch": "node scripts/whoop-fetch.js"
+    "whoop:fetch": "node scripts/whoop-fetch.js",
+    "whoop:seed-kv": "node scripts/whoop-seed-kv.js"
   },
   "dependencies": {
     "@fontsource-variable/martian-mono": "^5.2.7",
@@ -23,6 +24,7 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
+    "@vercel/node": "^3.2.0",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",

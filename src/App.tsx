@@ -1,11 +1,22 @@
 import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { Analytics } from '@vercel/analytics/react'
 import Footer from './Footer'
+import WhoopSection from './components/WhoopSection'
+import { fetchWhoopData, type WhoopApiData } from './lib/whoop'
 
 function App() {
+  const [whoopData, setWhoopData] = useState<WhoopApiData | null>(null)
+
+  useEffect(() => {
+    fetchWhoopData().then((data) => {
+      if (data) setWhoopData(data)
+    })
+  }, [])
+
   return (
-    <div className="max-w-[42rem] mx-auto px-6 py-16">
-      <header className="mb-12">
+    <div className="max-w-[42rem] mx-auto px-6 py-16 leading-relaxed">
+      <header className="mb-14">
         <h1 className="text-xl tracking-tight mb-2 font-light text-[#f5f5f0]">Andre Kim</h1>
         <p className="text-[rgb(135,135,135)] text-sm">
           <a href="mailto:jiandrekim@gmail.com" className="text-[rgb(135,135,135)] font-light transition-colors">
@@ -18,16 +29,25 @@ function App() {
         </p>
       </header>
 
-      <section className="mb-10 text-xs">
+      <WhoopSection data={whoopData} />
+
+      <section className="mb-12">
+        <h2 className="text-xs font-medium text-[rgb(74,111,165)] uppercase tracking-widest mb-4">Mantra</h2>
+        <ul className="space-y-1 text-[rgb(135,135,135)] text-xs">
+          <li>Build remarkable things with remarkable people.</li>
+        </ul>
+      </section>
+
+      <section className="mb-12 text-xs">
         <Link
           to="/essays"
-          className="text-xs font-medium text-[#4d8ef0] uppercase tracking-widest hover:text-[#c4a8ff] transition-colors border-b border-solid border-[#444] hover:border-[#c4a8ff] pb-0 inline-block"
+          className="text-xs font-medium text-[rgba(77,142,240,1)] uppercase tracking-widest hover:text-[#c4a8ff] transition-colors border-b border-solid border-[#444] hover:border-[#c4a8ff] pb-0 inline-block"
         >
           Essays
         </Link>
       </section>
 
-      <section className="mb-10">
+      <section className="mb-12">
         <h2 className="text-xs font-medium text-[rgb(74,111,165)] uppercase tracking-widest mb-4">
           <a href="https://www.linkedin.com/in/drekim" target="_blank" rel="noopener noreferrer" className="inline-block text-[#4d8ef0] border-b border-solid border-[#444] pb-[1px] hover:text-[#4d8ef0] hover:border-[#4d8ef0] transition-colors [border-image:none]">Career ↗</a>
         </h2>
@@ -53,23 +73,14 @@ function App() {
         </div>
       </section>
 
-      <section className="mb-10">
-        <h2 className="text-xs font-medium text-[rgb(74,111,165)] uppercase tracking-widest mb-4">Mantra</h2>
-        <ul className="space-y-1 text-[rgb(135,135,135)] text-xs">
-          <li>Build remarkable things with remarkable people.</li>
-        </ul>
-      </section>
-
-      <section className="mb-10">
-        <h2 className="text-xs font-medium text-[#4d8ef0] uppercase tracking-widest mb-4">Interests</h2>
+      <section className="mb-12">
+        <h2 className="text-xs font-medium text-[rgba(77,142,240,1)] uppercase tracking-widest mb-4">Interests</h2>
         <p className="text-[rgb(135,135,135)] text-xs">AI agents, shipping, learning in public.</p>
       </section>
 
-      <section className="mb-10">
-        <h2 className="text-xs font-medium text-[rgb(74,111,165)] uppercase tracking-widest mb-4">Life</h2>
+      <section className="mb-12">
         <ul className="space-y-1 text-[rgb(135,135,135)] text-xs">
-          <li>building in public</li>
-          <li>edit this with your own highlights</li>
+          <li>whoop, shipping, learning</li>
         </ul>
       </section>
 
