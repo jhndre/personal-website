@@ -91,11 +91,32 @@ export function guessCsvType(headerRow: string): 'cycles' | 'sleeps' | 'unknown'
 
 /**
  * Fetch WHOOP data: tries /api/whoop (Vercel KV) then /whoop-data.json (static).
+ * In dev we try whoop-data.json first so the static file is used without hitting /api.
  */
 export async function fetchWhoopData(): Promise<WhoopApiData | null> {
   try {
+    // In dev, use static file first (no API server)
+    if (import.meta.env.DEV) {
+      const r = await fetch('/whoop-data.json')
+      if (r.ok) {
+        try {
+          return await r.json()
+        } catch {
+          // fall through to try API
+        }
+      }
+    }
     const r = await fetch('/api/whoop')
-    if (r.ok) return await r.json()
+    if (r.ok) {
+      const contentType = r.headers.get('content-type') ?? ''
+      if (contentType.includes('application/json')) {
+        try {
+          return await r.json()
+        } catch {
+          // fall through
+        }
+      }
+    }
     const r2 = await fetch('/whoop-data.json')
     return r2.ok ? await r2.json() : null
   } catch {
